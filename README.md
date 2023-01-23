@@ -1,2 +1,2 @@
 # FunkyEUETS
-Fast EGM-based solution approach to EU ETS like system quota system
+Fast EGM-based solution approach to EU ETS like system
