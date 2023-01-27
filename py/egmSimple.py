@@ -11,6 +11,7 @@ _defaultParameters = { 'α': .186,
 						'pf': 40.5, 
 						'T':95, 
 						'stepSize': 0.01,
+						'n': 100,
 						'globalMaxB': 20}
 
 @jit

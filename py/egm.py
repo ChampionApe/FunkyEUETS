@@ -16,7 +16,7 @@ from numba.typed import Dict
 			('globalMaxB',float64)])
 class EGM:
 	""" Given parameter values """
-	def __init__(self, α=.186, γ=710.0, ψ=1.0, δ=5.0, g0=0.006, κ=0.01, β=1/1.05, pf = 40.5, T = 95, stepSize = 0.01,globalMaxB = 20.0):
+	def __init__(self, α=.186, γ=710, ψ=1, δ=5, g0=0.006, κ=0.01, β=1/1.05, pf = 40.5, T = 95, stepSize = 0.01,globalMaxB = 20):
 		self.α, self.γ, self.ψ, self.δ, self.g0, self.κ, self.β, self.pf, self.T, self.stepSize, self.globalMaxB = α,γ,ψ,δ,g0,κ,β,pf,T,stepSize,globalMaxB
 
 	def technologyIndex(self, A0=1):
@@ -24,7 +24,7 @@ class EGM:
 		g[0], A[0] = self.g0, A0
 		for i in range(1,self.T):
 			g[i] = g[i-1]/(1+self.κ)
-			A[i] = A[i-1]*(1-g[i])
+			A[i] = A[i-1]*(1-g[i-1])
 		return A
 
 	def price(self, A, e):
@@ -70,6 +70,23 @@ class EGM:
 			b[t+1]= b[t]+y[t]-e[t]
 		return b,e,p
 
+	def solveWithETS(self, z, b0, m0, ξ, A, ets, tol, maxIter):
+		""" Solve integrated system with 'type' referencing the ETS function to be called """
+		yi = z
+		for i in range(maxIter):
+			sol = self.solve(A,yi)
+			sim = self.sim(*sol, A, yi, b0)
+			if ets == 'preReform':
+				solETS = ETSSimple(m0,sim[0],z,ξ)
+			elif ets == 'postReform':
+				solETS = ETS(m0,sim[0],z,ξ)
+			if sum(np.square(solETS[2]-yi))<tol:
+				break
+			else:
+				yi = solETS[2]
+		print(f"Solution converged after {i+1} iterations" if i<maxIter-1 else f"Solution failed to converge")
+		return sol, sim, solETS
+
 @jit
 def funcDummyUpper1(B, z, ξ):
 	return 1 if (B>0.833 and z>=0.12*ξ*B) else 0
@@ -101,7 +118,11 @@ def ETSSimple(M0, B, z, ξ, NA0 = 0):
 def ETS(M0,B,z,ξ,NA0 = 0):
 	M, NA, y = np.empty(len(z)), np.empty(len(z)), np.empty(len(z))
 	M[0], NA[0], y[0] = M0, NA0, z[0]-NA0
-	for t in range(1,len(z)):
+	for t in range(1,6):
+		NA[t] = funcNA(B[t-1], z[t-1], ξ[t-1], M[t-1], z[t])
+		y[t]  = z[t]-NA[t]
+		M[t]  = M[t-1]+NA[t]
+	for t in range(6,len(z)):
 		NA[t] = funcNA(B[t-1], z[t-1], ξ[t-1], M[t-1], z[t])
 		y[t]  = z[t]-NA[t]
 		M[t]  = funclawOfMotionM(M[t-1], NA[t], z[t-1],NA[t-1])
